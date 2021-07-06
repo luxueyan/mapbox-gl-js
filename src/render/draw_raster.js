@@ -14,6 +14,28 @@ import type SourceCache from '../source/source_cache';
 import type RasterStyleLayer from '../style/style_layer/raster_style_layer';
 import type {OverscaledTileID} from '../source/tile_id';
 
+import coordtransform from 'coordtransform'
+
+function tileCoordsToLonLat(x, y, z) {
+  // const n = Math.pow(2, z)
+  // const lon_deg = x / n * 360.0 - 180.0
+  // const lat_rad = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n)))
+  // const lat_deg = lat_rad * 180.0 / Math.PI
+  return [tile2long(x,z), tile2lat(y,z)]
+}
+function lonLatToTileCoords(lon, lat, zoom) {
+  return [lon2tile(lon, zoom), lat2tile(lat,zoom)]
+}
+function lon2tile(lon,zoom) { return (Math.floor((lon+180)/360*Math.pow(2,zoom))); }
+function lat2tile(lat,zoom)  { return (Math.floor((1-Math.log(Math.tan(lat*Math.PI/180) + 1/Math.cos(lat*Math.PI/180))/Math.PI)/2 *Math.pow(2,zoom))); }
+function tile2long(x,z) {
+  return (x/Math.pow(2,z)*360-180);
+ }
+function tile2lat(y,z) {
+  var n=Math.PI-2*Math.PI*y/Math.pow(2,z);
+  return (180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n))));
+}
+
 export default drawRaster;
 
 function drawRaster(painter: Painter, sourceCache: SourceCache, layer: RasterStyleLayer, tileIDs: Array<OverscaledTileID>) {
@@ -34,6 +56,31 @@ function drawRaster(painter: Painter, sourceCache: SourceCache, layer: RasterSty
     const minTileZ = coords[coords.length - 1].overscaledZ;
 
     const align = !painter.options.moving;
+    let tPointX = 0;
+    let tPointY = 0;
+    if (layer.metadata.coordinate === 'GCJ02' && coords.length) {
+        const coord1 = coords[0];
+        const unwrappedTileID1 = coord1.toUnwrapped();
+        const canonical = unwrappedTileID1.canonical;
+        const lnglat = tileCoordsToLonLat(canonical.x, canonical.y, canonical.z);
+        const gcj = coordtransform.wgs84togcj02(lnglat[0], lnglat[1]);
+        const wgs84Point = painter.transform.locationPoint2(lnglat);
+        const gcjPoint = painter.transform.locationPoint2(gcj);
+        tPointX = (wgs84Point.x - gcjPoint.x) | 0;
+        tPointY = (wgs84Point.y - gcjPoint.y) | 0;
+        // const tPointX = -249
+        // const tPointY = -85
+        // const mercator = new MercatorCoordinate(canonical.x, canonical.y, canonical.z)
+        // centerOffset = new Point(tPointX, tPointY)
+        // if (canonical.x === 53927 && canonical.y === 26291) {
+        //   console.log(lnglat, gcj, tPointX, tPointY, canonical.y )
+        // }
+
+        // posMatrix = painter.translatePosMatrix(posMatrix, tile, [tPointX / 2, tPointY / 2], 'map');
+        // mat4.rotateX(m, m, this._pitch);
+        // mat4.rotateZ(m, m, this.angle);
+    }
+
     for (const coord of coords) {
         // Set the lower zoom level to sublayer 0, and higher zoom levels to higher sublayers
         // Use gl.LESS to prevent double drawing in areas where tiles overlap.
@@ -41,8 +88,12 @@ function drawRaster(painter: Painter, sourceCache: SourceCache, layer: RasterSty
             layer.paint.get('raster-opacity') === 1 ? DepthMode.ReadWrite : DepthMode.ReadOnly, gl.LESS);
 
         const tile = sourceCache.getTile(coord);
-        const posMatrix = painter.transform.calculatePosMatrix(coord.toUnwrapped(), align);
-
+        // const posMatrix = painter.transform.calculatePosMatrix(coord.toUnwrapped(), align);
+        const unwrappedTileID = coord.toUnwrapped();
+        let posMatrix = painter.transform.calculatePosMatrix(unwrappedTileID, align);
+        if (layer.metadata.coordinate === 'GCJ02') {
+            posMatrix = painter.translatePosMatrix(posMatrix, tile, [tPointX / 2, tPointY / 2], 'map');
+        }
         tile.registerFadeDuration(layer.paint.get('raster-fade-duration'));
 
         const parentTile = sourceCache.findLoadedParent(coord, 0),

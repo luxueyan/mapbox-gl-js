@@ -467,6 +467,10 @@ class Transform {
         return this.coordinatePoint(this.locationCoordinate(lnglat));
     }
 
+    locationPoint2(lnglat: LngLat) {
+        return this.coordinatePoint2(this.locationCoordinate(lnglat));
+    }
+
     /**
      * Given a point on screen, return its lnglat
      * @param {Point} p screen point
@@ -535,6 +539,12 @@ class Transform {
     coordinatePoint(coord: MercatorCoordinate) {
         const p = [coord.x * this.worldSize, coord.y * this.worldSize, 0, 1];
         vec4.transformMat4(p, p, this.pixelMatrix);
+        return new Point(p[0] / p[3], p[1] / p[3]);
+    }
+
+    coordinatePoint2(coord: MercatorCoordinate) {
+        const p = [coord.x * this.worldSize, coord.y * this.worldSize, 0, 1];
+        vec4.transformMat4(p, p, this._pixelMatrix);
         return new Point(p[0] / p[3], p[1] / p[3]);
     }
 
@@ -708,6 +718,7 @@ class Transform {
 
         // matrix for conversion from location to GL coordinates (-1 .. 1)
         let m = new Float64Array(16);
+        let _m = new Float64Array(16);
         mat4.perspective(m, this._fov, this.width / this.height, nearZ, farZ);
 
         //Apply center of perspective offset
@@ -716,9 +727,11 @@ class Transform {
 
         mat4.scale(m, m, [1, -1, 1]);
         mat4.translate(m, m, [0, 0, -this.cameraToCenterDistance]);
+        _m = mat4.clone(m);
         mat4.rotateX(m, m, this._pitch);
         mat4.rotateZ(m, m, this.angle);
         mat4.translate(m, m, [-x, -y, 0]);
+        mat4.translate(_m, _m, [-x, -y, 0]);
 
         // The mercatorMatrix can be used to transform points from mercator coordinates
         // ([0, 0] nw, [1, 1] se) to GL coordinates.
@@ -726,8 +739,10 @@ class Transform {
 
         // scale vertically to meters per pixel (inverse of ground resolution):
         mat4.scale(m, m, [1, 1, mercatorZfromAltitude(1, this.center.lat) * this.worldSize, 1]);
+        mat4.scale(_m, _m, [1, 1, mercatorZfromAltitude(1, this.center.lat) * this.worldSize, 1]);
 
         this.projMatrix = m;
+        this._projMatrix = _m;
         this.invProjMatrix = mat4.invert([], this.projMatrix);
 
         // Make a second projection matrix that is aligned to a pixel grid for rendering raster tiles.
@@ -757,6 +772,7 @@ class Transform {
 
         // matrix for conversion from location to screen coordinates
         this.pixelMatrix = mat4.multiply(new Float64Array(16), this.labelPlaneMatrix, this.projMatrix);
+        this._pixelMatrix = mat4.multiply(new Float64Array(16), this.labelPlaneMatrix, this._projMatrix);
 
         // inverse matrix for conversion from screen coordinaes to location
         m = mat4.invert(new Float64Array(16), this.pixelMatrix);
