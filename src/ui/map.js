@@ -2255,7 +2255,7 @@ class Map extends Camera {
             height = this._container.clientHeight || 300;
         }
 
-        return [width + 400, height + (height / width) * 800 | 0];
+        return [width, height];
     }
 
     _detectMissingCSS(): void {

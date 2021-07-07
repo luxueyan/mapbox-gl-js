@@ -413,7 +413,38 @@ class Transform {
                 stack.push({aabb: it.aabb.quadrant(i), zoom: it.zoom + 1, x: childX, y: childY, wrap: it.wrap, fullyVisible});
             }
         }
+        // 补充右侧瓦片信息
+        const xyBounds = {x: [Number.MAX_SAFE_INTEGER, 0], y: [Number.MAX_SAFE_INTEGER, 0]};
+        result.forEach(v => {
+            xyBounds.x[0] = Math.min(xyBounds.x[0], v.tileID.canonical.x);
+            xyBounds.x[1] = Math.max(xyBounds.x[1], v.tileID.canonical.x);
+            xyBounds.y[0] = Math.min(xyBounds.y[0], v.tileID.canonical.y);
+            xyBounds.y[1] = Math.max(xyBounds.y[1], v.tileID.canonical.y);
+        });
+        const firstR = result[0].tileID;
+        const wrap = firstR.wrap;
+        const zoom = firstR.canonical.z;
+        const yDiff = xyBounds.y[1] - xyBounds.y[0];
+        const xDiff = xyBounds.x[1] - xyBounds.x[0];
+        for (let iv = 0; iv <= yDiff + 5; iv++) {
+            for (let ix = 1; ix < zoom - 3; ix++) { // 横向补充
+                result.push({
+                    tileID: new OverscaledTileID(zoom, wrap, zoom, xyBounds.x[1] + ix, xyBounds.y[0] + iv),
+                    distanceSq: vec2.sqrLen([centerPoint[0] - 0.5 - xyBounds.x[1] + ix, centerPoint[1] - 0.5 - xyBounds.y[0] + iv])
+                });
+            }
 
+        }
+        for (let ih = 0; ih <= xDiff; ih++) {
+            for (let iy = 1; iy < 5; iy++) { // 竖向补充5行
+                result.push({
+                    tileID: new OverscaledTileID(zoom, wrap, zoom, xyBounds.x[0] + ih, xyBounds.y[1] + iy),
+                    distanceSq: vec2.sqrLen([centerPoint[0] - 0.5 - xyBounds.x[0] + ih, centerPoint[1] - 0.5 - xyBounds.y[1] + iy])
+                });
+            }
+        }
+
+        // console.log(xyBounds, result.sort((a, b) => a.distanceSq - b.distanceSq).map(a => a.tileID.canonical));
         return result.sort((a, b) => a.distanceSq - b.distanceSq).map(a => a.tileID);
     }
 

@@ -14,14 +14,14 @@ import type SourceCache from '../source/source_cache';
 import type RasterStyleLayer from '../style/style_layer/raster_style_layer';
 import type {OverscaledTileID} from '../source/tile_id';
 
-import coordtransform from 'coordtransform'
+import coordtransform from 'coordtransform';
 
 function tileCoordsToLonLat(x, y, z) {
   // const n = Math.pow(2, z)
   // const lon_deg = x / n * 360.0 - 180.0
   // const lat_rad = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n)))
   // const lat_deg = lat_rad * 180.0 / Math.PI
-  return [tile2long(x,z), tile2lat(y,z)]
+  return [tile2long(x, z), tile2lat(y, z)];
 }
 function lonLatToTileCoords(lon, lat, zoom) {
   return [lon2tile(lon, zoom), lat2tile(lat,zoom)]
